@@ -1,0 +1,26 @@
+# Stage 1: Development Environment
+FROM node:18-alpine AS development
+
+# Set working directory
+WORKDIR /app
+
+# Install pnpm globally
+RUN npm install -g pnpm
+
+# Copy package.json and pnpm-lock.yaml
+COPY package.json pnpm-lock.yaml ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy the rest of the application code
+COPY . .
+
+# Expose the Vite development server port
+EXPOSE 5173
+
+# Set environment variable
+ENV NODE_ENV=development
+
+# Start the Vite development server
+CMD ["pnpm", "dev"]

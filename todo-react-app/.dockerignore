@@ -1,0 +1,17 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.cjs
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+
+# Misc
+.DS_Store
+.git
+.gitignore
+Dockerfile
+docker-compose.yml

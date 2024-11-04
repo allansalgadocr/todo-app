@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  react-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: todo-app:development
+    container_name: todo-app-development
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./src:/app/src
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: pnpm start
+    restart: unless-stopped

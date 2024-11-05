@@ -1,8 +1,7 @@
 ﻿using AutoMapper;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TodoApp.Api.DTOs;
+using TodoApp.Api.Exceptions;
 using TodoApp.Api.Models;
 using TodoApp.Api.Repositories;
 
@@ -30,17 +29,9 @@ namespace TodoApp.Api.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TodoItemReadDto>>> GetTodos()
         {
-            try
-            {
-                var todoItems = await _todoRepository.GetAllAsync();
-                var todoItemDtos = _mapper.Map<IEnumerable<TodoItemReadDto>>(todoItems);
-                return Ok(todoItemDtos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "An error occurred while retrieving TODO items.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while retrieving TODO items." });
-            }
+            var todoItems = await _todoRepository.GetAllAsync();
+            var todoItemDtos = _mapper.Map<IEnumerable<TodoItemReadDto>>(todoItems);
+            return Ok(todoItemDtos);
         }
 
         /// <summary>
@@ -51,24 +42,16 @@ namespace TodoApp.Api.Controllers
         [HttpGet("{id}", Name = "GetTodo")]
         public async Task<ActionResult<TodoItemReadDto>> GetTodo(Guid id)
         {
-            try
-            {
-                var todoItem = await _todoRepository.GetByIdAsync(id);
+            var todoItem = await _todoRepository.GetByIdAsync(id);
 
-                if (todoItem == null)
-                {
-                    _logger.LogWarning("TODO item with ID {TodoId} not found.", id);
-                    return NotFound(new { Message = $"TODO item with ID {id} not found." });
-                }
-
-                var todoItemDto = _mapper.Map<TodoItemReadDto>(todoItem);
-                return Ok(todoItemDto);
-            }
-            catch (Exception ex)
+            if (todoItem == null)
             {
-                _logger.LogError(ex, "An error occurred while retrieving TODO item with ID {TodoId}.", id);
-                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while retrieving the TODO item." });
+                _logger.LogWarning("TODO item with ID {TodoId} not found.", id);
+                throw new UserFriendlyException($"TODO item with ID {id} not found.", StatusCodes.Status404NotFound);
             }
+
+            var todoItemDto = _mapper.Map<TodoItemReadDto>(todoItem);
+            return Ok(todoItemDto);
         }
 
         /// <summary>
@@ -82,36 +65,23 @@ namespace TodoApp.Api.Controllers
             if (todoItemCreateDto == null)
             {
                 _logger.LogWarning("CreateTodo called with null DTO.");
-                return BadRequest(new { Message = "Invalid TODO item data." });
+                throw new UserFriendlyException("Invalid TODO item data.", StatusCodes.Status400BadRequest);
             }
 
             if (!ModelState.IsValid)
             {
                 _logger.LogWarning("CreateTodo called with invalid model state.");
-                return BadRequest(ModelState);
+                throw new UserFriendlyException("Invalid TODO item data.", StatusCodes.Status400BadRequest);
             }
 
-            try
-            {
-                var todoItem = _mapper.Map<TodoItem>(todoItemCreateDto);
+            var todoItem = _mapper.Map<TodoItem>(todoItemCreateDto);
 
-                await _todoRepository.AddAsync(todoItem);
-                await _todoRepository.SaveAsync();
+            await _todoRepository.AddAsync(todoItem);
+            await _todoRepository.SaveAsync();
 
-                var todoItemReadDto = _mapper.Map<TodoItemReadDto>(todoItem);
+            var todoItemReadDto = _mapper.Map<TodoItemReadDto>(todoItem);
 
-                return CreatedAtRoute(nameof(GetTodo), new { id = todoItemReadDto.Id }, todoItemReadDto);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Database update error while creating TODO item.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "A database error occurred while creating the TODO item." });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "An error occurred while creating TODO item.");
-                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while creating the TODO item." });
-            }
+            return CreatedAtRoute(nameof(GetTodo), new { id = todoItemReadDto.Id }, todoItemReadDto);
         }
 
         /// <summary>
@@ -126,48 +96,30 @@ namespace TodoApp.Api.Controllers
             if (todoItemUpdateDto == null)
             {
                 _logger.LogWarning("UpdateTodo called with null DTO for ID {TodoId}.", id);
-                return BadRequest(new { Message = "Invalid TODO item data." });
+                throw new UserFriendlyException("Invalid TODO item data.", StatusCodes.Status400BadRequest);
             }
 
             if (!ModelState.IsValid)
             {
                 _logger.LogWarning("UpdateTodo called with invalid model state for ID {TodoId}.", id);
-                return BadRequest(ModelState);
+                throw new UserFriendlyException("Invalid TODO item data.", StatusCodes.Status400BadRequest);
             }
 
-            try
+            var todoItemFromRepo = await _todoRepository.GetByIdAsync(id);
+
+            if (todoItemFromRepo == null)
             {
-                var todoItemFromRepo = await _todoRepository.GetByIdAsync(id);
-
-                if (todoItemFromRepo == null)
-                {
-                    _logger.LogWarning("TODO item with ID {TodoId} not found for update.", id);
-                    return NotFound(new { Message = $"TODO item with ID {id} not found." });
-                }
-
-                _mapper.Map(todoItemUpdateDto, todoItemFromRepo);
-
-                _todoRepository.Update(todoItemFromRepo);
-
-                await _todoRepository.SaveAsync();
-
-                return NoContent();
+                _logger.LogWarning("TODO item with ID {TodoId} not found for update.", id);
+                throw new UserFriendlyException($"TODO item with ID {id} not found.", StatusCodes.Status404NotFound);
             }
-            catch (DbUpdateConcurrencyException dbEx)
-            {
-                _logger.LogError(dbEx, "Concurrency error while updating TODO item with ID {TodoId}.", id);
-                return StatusCode(StatusCodes.Status409Conflict, new { Message = "A concurrency error occurred while updating the TODO item." });
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Database update error while updating TODO item with ID {TodoId}.", id);
-                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "A database error occurred while updating the TODO item." });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "An error occurred while updating TODO item with ID {TodoId}.", id);
-                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while updating the TODO item." });
-            }
+
+            _mapper.Map(todoItemUpdateDto, todoItemFromRepo);
+
+            _todoRepository.Update(todoItemFromRepo);
+
+            await _todoRepository.SaveAsync();
+
+            return NoContent();
         }
 
         /// <summary>
@@ -178,31 +130,18 @@ namespace TodoApp.Api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTodo(Guid id)
         {
-            try
-            {
-                var todoItemFromRepo = await _todoRepository.GetByIdAsync(id);
+            var todoItemFromRepo = await _todoRepository.GetByIdAsync(id);
 
-                if (todoItemFromRepo == null)
-                {
-                    _logger.LogWarning("TODO item with ID {TodoId} not found for deletion.", id);
-                    return NotFound(new { Message = $"TODO item with ID {id} not found." });
-                }
-
-                _todoRepository.Delete(todoItemFromRepo);
-                await _todoRepository.SaveAsync();
-
-                return NoContent();
-            }
-            catch (DbUpdateException dbEx)
+            if (todoItemFromRepo == null)
             {
-                _logger.LogError(dbEx, "Database update error while deleting TODO item with ID {TodoId}.", id);
-                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "A database error occurred while deleting the TODO item." });
+                _logger.LogWarning("TODO item with ID {TodoId} not found for deletion.", id);
+                throw new UserFriendlyException($"TODO item with ID {id} not found.", StatusCodes.Status404NotFound);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "An error occurred while deleting TODO item with ID {TodoId}.", id);
-                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "An unexpected error occurred while deleting the TODO item." });
-            }
+
+            _todoRepository.Delete(todoItemFromRepo);
+            await _todoRepository.SaveAsync();
+
+            return NoContent();
         }
     }
 }

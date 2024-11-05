@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TodoApp.Api.Data;
 using TodoApp.Api.Mappings;
+using TodoApp.Api.Middleware;
 using TodoApp.Api.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,9 @@ builder.Services.AddScoped<ITodoRepository, TodoRepository>();
 builder.Services.AddAutoMapper(typeof(TodoProfile).Assembly);
 
 var app = builder.Build();
+
+// Middleware to handle global exceptions and return a JSON response
+app.UseExceptionMiddleware();
 
 // Create a scoped service provider to apply any pending migrations on application startup.
 // This ensures the database schema is up-to-date without requiring manual migration steps.

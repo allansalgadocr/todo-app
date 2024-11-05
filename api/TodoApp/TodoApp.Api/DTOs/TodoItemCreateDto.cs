@@ -4,7 +4,7 @@ namespace TodoApp.Api.DTOs
 {
     public class TodoItemCreateDto
     {
-        [Required]
+        [Required(AllowEmptyStrings = false)]
         [MaxLength(200)]
         public required string Title { get; set; }
 

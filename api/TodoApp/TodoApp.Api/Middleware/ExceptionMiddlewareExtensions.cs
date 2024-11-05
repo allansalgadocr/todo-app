@@ -9,7 +9,7 @@
         /// <returns>The updated application builder.</returns>
         public static IApplicationBuilder UseExceptionMiddleware(this IApplicationBuilder builder)
         {
-            return builder.UseMiddleware<ExceptionMiddleware>();
+            return builder.UseMiddleware<ExceptionHandlingMiddleware>();
         }
     }
 }

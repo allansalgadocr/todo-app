@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: ./api/TodoApp/TodoApp.Api
+    ports:
+      - "3000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ApplicationCors__AllowedOrigins=http://localhost:3001
+      - ApplicationCors__PolicyName=TodoAppDevelopmentPolicy
+      - ApiKeySettings__ApiKey=123456
+
+  app:
+    build:
+      context: ./todo-react-app
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3001:80"
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:3000/api}
+      - VITE_API_KEY=${VITE_API_KEY:-123456}

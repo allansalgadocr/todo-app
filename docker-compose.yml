@@ -8,7 +8,7 @@ services:
       - "3000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ApplicationCors__AllowedOrigins=http://localhost:3001
+      - ApplicationCors__AllowedOrigin=http://localhost
       - ApplicationCors__PolicyName=TodoAppDevelopmentPolicy
       - ApiKeySettings__ApiKey=123456
 

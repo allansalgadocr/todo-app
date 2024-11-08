@@ -16,11 +16,17 @@ RUN pnpm install --frozen-lockfile
 # Copy the rest of the application code
 COPY . .
 
-# Set environment variable
+# Set environment variables for Vite
+ARG VITE_API_BASE_URL
+ARG VITE_API_KEY
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_API_KEY=$VITE_API_KEY
+
+# Set Node environment variable
 ARG NODE_ENV=production
 ENV NODE_ENV=$NODE_ENV
 
-# Build the React app
+# Build the React app with Vite
 RUN pnpm run build
 
 # Stage 2: Serve with Nginx

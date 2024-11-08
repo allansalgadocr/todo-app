@@ -1,0 +1,58 @@
+name: Deploy API and Frontend to EC2 from ECR
+
+on:
+  push:
+    branches:
+      - main # Trigger deployment when code is pushed to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to Amazon ECR
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
+
+      - name: Build and Push API Docker Image to ECR
+        env:
+          API_IMAGE_URI: "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.API_ECR_REPOSITORY }}:latest"
+        run: |
+          docker build -t "$API_IMAGE_URI" -f api/TodoApp/TodoApp.Api/Dockerfile ./api
+          docker push "$API_IMAGE_URI"
+
+      - name: Build and Push Frontend Docker Image to ECR
+        env:
+          FRONTEND_IMAGE_URI: "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.FRONTEND_ECR_REPOSITORY }}:latest"
+        run: |
+          docker build -t "$FRONTEND_IMAGE_URI" -f todo-react-app/Dockerfile ./frontend
+          docker push "$FRONTEND_IMAGE_URI"
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            # Log in to Amazon ECR from EC2
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
+
+            # Pull latest API image and restart container
+            docker pull "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.API_ECR_REPOSITORY }}:latest"
+            docker stop api-container || true
+            docker rm api-container || true
+            docker run -d -p 8080:8080 --name api-container "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.API_ECR_REPOSITORY }}:latest"
+
+            # Pull latest Frontend image and restart container
+            docker pull "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.FRONTEND_ECR_REPOSITORY }}:latest"
+            docker stop frontend-container || true
+            docker rm frontend-container || true
+            docker run -d -p 80:80 --name frontend-container "${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.FRONTEND_ECR_REPOSITORY }}:latest"

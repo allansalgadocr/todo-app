@@ -15,7 +15,7 @@ const Home: React.FC = () => {
       <div className="container mx-auto p-4 flex justify-end">
         <button
           onClick={handleAddTodo}
-          className="bg-purple-700 hover:bg-purple-900 text-white font-thin py-2 px-4 rounded-full"
+          className="w-full md:w-auto bg-purple-700 hover:bg-purple-900 text-white font-thin py-2 px-4 rounded-full"
         >
           + Add New Todo
         </button>

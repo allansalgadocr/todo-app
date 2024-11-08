@@ -69,7 +69,7 @@ const TodoList: React.FC = () => {
         />
 
         {/* Filter buttons */}
-        <div className="flex mt-4 md:mt-0">
+        <div className="self-center md:self-end flex mt-4 md:mt-0">
           {Object.values(Filter).map((filterValue) => (
             <button
               key={filterValue}
@@ -88,7 +88,7 @@ const TodoList: React.FC = () => {
 
       {/* Virtualized list */}
       {filteredTodos.length === 0 ? (
-        <p className="text-center text-white">No TODO items found.</p>
+        <p className="my-4 text-center text-white">No TODO items found.</p>
       ) : (
         <div className="mt-4 h-[600px]">
           <AutoSizer>

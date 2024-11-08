@@ -16,7 +16,7 @@ const TodoItem: React.FC<Props> = ({
   onToggleComplete,
 }) => {
   return (
-    <li className="flex justify-between items-center bg-gradient-to-b from-gray-600 to-gray-900 shadow-md p-4 mb-2 rounded-lg min-h-[85px]">
+    <li className="flex flex-col md:flex-row justify-center md:justify-between items-start md:items-center bg-gradient-to-b from-gray-600 to-gray-900 shadow-md p-4 mb-2 rounded-lg min-h-[85px]">
       <div className="flex items-center space-x-3">
         {/* custom checkbox */}
         <label className="flex items-center cursor-pointer">
@@ -33,16 +33,18 @@ const TodoItem: React.FC<Props> = ({
         {/* title & description */}
         <div>
           <h2
-            className={`text-xl text-gray-200 ${
+            className={`md:text-xl text-gray-200 ${
               todo.isCompleted ? "line-through" : ""
             }`}
           >
             {todo.title}
           </h2>
-          <p className="text-gray-200 font-thin">{todo.description}</p>
+          <p className="text-sm md:text-base text-gray-200 font-thin">
+            {todo.description}
+          </p>
         </div>
       </div>
-      <div className="flex space-x-2">
+      <div className="flex self-end md:self-center space-x-2">
         <button onClick={() => onEdit(todo)} className="">
           <BiPencil className="text-gray-200 hover:text-gray-200 text-2xl" />
         </button>

@@ -10,15 +10,11 @@ const API_KEY = import.meta.env.VITE_API_KEY;
 
 // Validate environment variables
 if (!BASE_URL) {
-  throw new Error(
-    "REACT_APP_API_BASE_URL is not defined in the environment variables."
-  );
+  throw new Error("API_BASE_URL is not defined in the environment variables.");
 }
 
 if (!API_KEY) {
-  throw new Error(
-    "REACT_APP_API_KEY is not defined in the environment variables."
-  );
+  throw new Error("API_KEY is not defined in the environment variables.");
 }
 
 const api: AxiosInstance = axios.create({

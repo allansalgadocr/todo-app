@@ -1,0 +1,292 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation template to deploy Todo App Dockerized to ECS.
+
+Parameters:
+  # VPC Configuration
+  VPCCIDR:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: "CIDR block for the VPC."
+
+  PublicSubnet1CIDR:
+    Type: String
+    Default: "10.0.1.0/24"
+    Description: "CIDR block for the first public subnet."
+
+  # ECS Cluster Name
+  ECSClusterName:
+    Type: String
+    Default: "TodoAppCluster"
+    Description: "Name of the ECS Cluster."
+
+  # Task CPU and Memory (Fargate)
+  APITaskCPU:
+    Type: String
+    Default: "256"
+    Description: "CPU units for the API task."
+
+  APITaskMemory:
+    Type: String
+    Default: "512"
+    Description: "Memory (in MiB) for the API task."
+
+  FrontendTaskCPU:
+    Type: String
+    Default: "256"
+    Description: "CPU units for the Frontend task."
+
+  FrontendTaskMemory:
+    Type: String
+    Default: "512"
+    Description: "Memory (in MiB) for the Frontend task."
+
+  # Docker Image URIs
+  APIImageURI:
+    Type: String
+    Description: "ECR Image URI for the API service."
+
+  FrontendImageURI:
+    Type: String
+    Description: "ECR Image URI for the Frontend service."
+
+Resources:
+  # 1. VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: TodoAppVPC
+
+  # 2. Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: TodoAppIGW
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # 3. Public Subnets
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: TodoAppPublicSubnet1
+
+  # 4. Security Groups
+  # Security Group for ECS Tasks (API and Frontend)
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow inbound traffic for ECS tasks"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: "0.0.0.0/0" # Allow all IPs (modify for more restrictive access)
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0" # Allow all IPs
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: TodoAppECSSG
+
+  # 5. ECS Cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ECSClusterName
+
+  # 6. ECS Task Definitions
+  # API Task Definition
+  APITaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: TodoAppAPITask
+      Cpu: !Ref APITaskCPU
+      Memory: !Ref APITaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: api
+          Image: !Ref APIImageURI
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: ASPNETCORE_ENVIRONMENT
+              Value: "Development"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref APILogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: api
+
+  # Frontend Task Definition
+  FrontendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: TodoAppFrontendTask
+      Cpu: !Ref FrontendTaskCPU
+      Memory: !Ref FrontendTaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: frontend
+          Image: !Ref FrontendImageURI
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          Environment:
+            - Name: VITE_API_BASE_URL
+              Value: "http://api.local"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FrontendLogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: frontend
+
+  # 7. ECS Services
+  # API Service
+  APIService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition: !Ref APITaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnet1
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+
+  # Frontend Service
+  FrontendService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition: !Ref FrontendTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnet1
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+
+  # 8. IAM Roles
+  # ECS Task Execution Role
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: ECSFargateExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  # ECS Task Role
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: ECSTaskRolePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: "*"
+
+  # 9. CloudWatch Log Groups
+  APILogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/ecs/todo-app-api"
+      RetentionInDays: 14
+
+  FrontendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/ecs/todo-app-frontend"
+      RetentionInDays: 14
+
+Outputs:
+  # API Service Endpoint
+  APIEndpoint:
+    Description: "API Endpoint"
+    Value: !Join
+      - ""
+      - - "http://"
+        - !GetAtt PublicSubnet1.CidrBlock
+
+  # Frontend Service Endpoint
+  FrontendEndpoint:
+    Description: "Frontend Endpoint"
+    Value: !Join
+      - ""
+      - - "http://"
+        - !GetAtt PublicSubnet1.CidrBlock
